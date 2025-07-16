@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+</head>
+<body>
+    <h1>Salas</h1>
+    <div id="userInfo"></div>
+    <ul id="salasList"></ul>
+    <div id="message"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const token = localStorage.getItem('token');
+            const usuarioData = localStorage.getItem('usuario');
+
+            if (!token || !usuarioData) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            try {
+                const usuario = JSON.parse(usuarioData);
+                document.getElementById('userInfo').textContent = `Bem-vindo, ${usuario.nome}!`;
+            } catch (error) {
+                console.error('Erro ao processar dados do usuário, fazendo logout.', error);
+                localStorage.clear();
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = 'Buscando salas...';
+
+            fetch('https://giro-de-sala-backend.vercel.app/api/salas', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            } )
+            .then(response => {
+                if (!response.ok) {
+                    // Se a resposta não for OK, o token pode ter expirado.
+                    throw new Error(`Falha ao buscar salas (Status: ${response.status}). Token pode ter expirado.`);
+                }
+                return response.json();
+            })
+            .then(salas => {
+                messageDiv.textContent = '';
+                const salasList = document.getElementById('salasList');
+                salasList.innerHTML = ''; // Limpa a lista antes de adicionar novos itens
+                salas.forEach(sala => {
+                    const li = document.createElement('li');
+                    li.textContent = `${sala.nome} - Status: ${sala.status}`;
+                    salasList.appendChild(li);
+                });
+            })
+            .catch(error => {
+                console.error(error);
+                messageDiv.textContent = error.message;
+                // Se falhar, fazemos logout por segurança.
+                setTimeout(() => {
+                    localStorage.clear();
+                    window.location.href = 'login.html';
+                }, 3000);
+            });
+        });
+    </script>
+</body>
+</html>

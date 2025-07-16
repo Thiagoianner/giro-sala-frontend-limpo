@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+</head>
+<body>
+    <h1>Login</h1>
+    <form id="loginForm">
+        <input type="email" id="email" placeholder="Email" required value="admin@hospital.com">
+        <input type="password" id="senha" placeholder="Senha" required value="admin123">
+        <button type="submit">Entrar</button>
+    </form>
+    <div id="message"></div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = 'Fazendo login...';
+
+            try {
+                const response = await fetch('https://giro-de-sala-backend.vercel.app/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: document.getElementById('email' ).value,
+                        senha: document.getElementById('senha').value
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('usuario', JSON.stringify(data.user));
+                    messageDiv.textContent = 'Login bem-sucedido! Redirecionando...';
+                    window.location.href = 'index.html';
+                } else {
+                    messageDiv.textContent = `Erro: ${data.error || 'Credenciais inválidas'}`;
+                }
+            } catch (error) {
+                messageDiv.textContent = 'Erro de conexão. Verifique o console.';
+                console.error('Fetch error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
