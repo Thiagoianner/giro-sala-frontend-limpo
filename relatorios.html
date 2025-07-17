@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatórios - Giro de Sala</title>
+    <style>
+        body { font-family: 'Roboto', Arial, sans-serif; background-color: #ECF0F1; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #2C3E50; }
+        .header a { color: #3498DB; text-decoration: none; font-weight: bold; }
+        .header a:hover { text-decoration: underline; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #BDC3C7; padding: 12px; text-align: left; }
+        th { background-color: #34495E; color: white; }
+        tbody tr:nth-child(even) { background-color: #F2F2F2; }
+        .loading, .error { text-align: center; font-size: 18px; color: #7F8C8D; margin-top: 50px; }
+        .error { color: #E74C3C; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Relatório de Giros Concluídos</h1>
+            <p><a href="index.html">&larr; Voltar para o Dashboard</a></p>
+        </div>
+
+        <div id="loading" class="loading">Carregando relatório...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <table id="relatorioTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Sala</th>
+                    <th>Usuário</th>
+                    <th>Data de Início</th>
+                    <th>Data de Fim</th>
+                    <th>Tempo Total</th>
+                </tr>
+            </thead>
+            <tbody id="relatorioBody">
+                <!-- Linhas serão inseridas dinamicamente -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const API_URL = 'https://giro-de-sala-backend.vercel.app/api';
+        let token = null;
+
+        document.addEventListener('DOMContentLoaded', ( ) => {
+            token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+            carregarRelatorio();
+        });
+
+        async function carregarRelatorio() {
+            try {
+                const response = await fetch(`${API_URL}/relatorios/giros`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.status === 401) throw new Error('Sessão expirada.');
+                if (!response.ok) throw new Error('Erro ao buscar o relatório.');
+
+                const giros = await response.json();
+                renderizarTabela(giros);
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('relatorioTable').style.display = 'table';
+
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                const errorDiv = document.getElementById('error');
+                errorDiv.textContent = error.message;
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        function renderizarTabela(giros) {
+            const tbody = document.getElementById('relatorioBody');
+            tbody.innerHTML = '';
+
+            if (giros.length === 0) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 5;
+                td.textContent = 'Nenhum giro concluído encontrado.';
+                td.style.textAlign = 'center';
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                return;
+            }
+
+            giros.forEach(giro => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${giro.sala_numero}</td>
+                    <td>${giro.usuario_nome}</td>
+                    <td>${new Date(giro.data_inicio).toLocaleString('pt-BR')}</td>
+                    <td>${new Date(giro.data_fim).toLocaleString('pt-BR')}</td>
+                    <td>${formatarTempo(giro.tempo_total)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function formatarTempo(segundos) {
+            if (segundos === null || segundos === undefined) return 'N/A';
+            if (segundos < 0) segundos = 0;
+            const h = Math.floor(segundos / 3600).toString().padStart(2, '0');
+            const m = Math.floor((segundos % 3600) / 60).toString().padStart(2, '0');
+            const s = Math.floor(segundos % 60).toString().padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+    </script>
+</body>
+</html>

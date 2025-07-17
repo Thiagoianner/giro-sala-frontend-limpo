@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciamento de Usuários</title>
+    <style>
+        body { font-family: 'Roboto', Arial, sans-serif; background-color: #ECF0F1; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .header h1 { color: #2C3E50; }
+        .header a, .header button { color: #3498DB; background: none; border: none; font-size: 16px; text-decoration: none; font-weight: bold; cursor: pointer; }
+        .header a:hover, .header button:hover { text-decoration: underline; }
+        .btn-add { background-color: #2ECC71; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; }
+        .btn-add:hover { background-color: #27AE60; text-decoration: none; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #BDC3C7; padding: 12px; text-align: left; }
+        th { background-color: #34495E; color: white; }
+        .actions button { margin-right: 5px; padding: 5px 8px; border: none; border-radius: 3px; cursor: pointer; }
+        .btn-edit { background-color: #F39C12; color: white; }
+        .btn-delete { background-color: #E74C3C; color: white; }
+        .loading, .error { text-align: center; font-size: 18px; color: #7F8C8D; margin-top: 50px; }
+        .error { color: #E74C3C; }
+        /* Estilos do Modal/Formulário */
+        #formContainer { display: none; margin-top: 30px; padding: 20px; border: 1px solid #BDC3C7; border-radius: 5px; background-color: #F8F9F9; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #BDC3C7; border-radius: 3px; }
+        .form-actions { margin-top: 20px; }
+        .form-actions button { padding: 10px 15px; border: none; border-radius: 3px; cursor: pointer; color: white; }
+        .btn-save { background-color: #3498DB; }
+        .btn-cancel { background-color: #95A5A6; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Gerenciamento de Usuários</h1>
+            <a href="index.html">&larr; Voltar para o Dashboard</a>
+        </div>
+
+        <button id="showFormBtn" class="btn-add">Adicionar Novo Usuário</button>
+
+        <!-- Formulário para Adicionar/Editar Usuário (escondido por padrão) -->
+        <div id="formContainer">
+            <h2 id="formTitle">Adicionar Novo Usuário</h2>
+            <form id="userForm">
+                <input type="hidden" id="userId">
+                <div class="form-group">
+                    <label for="nome">Nome:</label>
+                    <input type="text" id="nome" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group" id="passwordGroup">
+                    <label for="senha">Senha:</label>
+                    <input type="password" id="senha">
+                    <small>Deixe em branco para não alterar a senha existente.</small>
+                </div>
+                <div class="form-group">
+                    <label for="tipo">Tipo:</label>
+                    <select id="tipo" required>
+                        <option value="operador">Operador</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-save">Salvar</button>
+                    <button type="button" id="cancelBtn" class="btn-cancel">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="loading" class="loading">Carregando usuários...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <table id="usersTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Tipo</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="usersBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        const API_URL = 'https://giro-de-sala-backend.vercel.app/api';
+        let token = null;
+
+        // Elementos do DOM
+        const showFormBtn = document.getElementById('showFormBtn' );
+        const formContainer = document.getElementById('formContainer');
+        const formTitle = document.getElementById('formTitle');
+        const userForm = document.getElementById('userForm');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const passwordGroup = document.getElementById('passwordGroup');
+
+        document.addEventListener('DOMContentLoaded', () => {
+            token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+            carregarUsuarios();
+        });
+
+        async function carregarUsuarios() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('usersTable').style.display = 'none';
+            try {
+                const response = await fetch(`${API_URL}/usuarios`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (response.status === 401) throw new Error('Sessão expirada.');
+                if (response.status === 403) throw new Error('Acesso negado.');
+                if (!response.ok) throw new Error('Erro ao buscar usuários.');
+                const usuarios = await response.json();
+                renderizarTabela(usuarios);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('usersTable').style.display = 'table';
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').textContent = error.message;
+                document.getElementById('error').style.display = 'block';
+            }
+        }
+
+        function renderizarTabela(usuarios) {
+            const tbody = document.getElementById('usersBody');
+            tbody.innerHTML = '';
+            usuarios.forEach(user => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${user.id}</td>
+                    <td>${user.nome}</td>
+                    <td>${user.email}</td>
+                    <td>${user.tipo}</td>
+                    <td class="actions">
+                        <button class="btn-edit" onclick='editarUsuario(${JSON.stringify(user)})'>Editar</button>
+                        <button class="btn-delete" onclick="deletarUsuario(${user.id})">Deletar</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- Lógica do Formulário ---
+        showFormBtn.addEventListener('click', () => {
+            formTitle.textContent = 'Adicionar Novo Usuário';
+            userForm.reset();
+            document.getElementById('userId').value = '';
+            passwordGroup.style.display = 'block';
+            document.getElementById('senha').required = true;
+            formContainer.style.display = 'block';
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            formContainer.style.display = 'none';
+        });
+
+        function editarUsuario(user) {
+            formTitle.textContent = 'Editar Usuário';
+            userForm.reset();
+            document.getElementById('userId').value = user.id;
+            document.getElementById('nome').value = user.nome;
+            document.getElementById('email').value = user.email;
+            document.getElementById('tipo').value = user.tipo;
+            passwordGroup.style.display = 'block'; // Manter visível para edição
+            document.getElementById('senha').required = false; // Senha não é obrigatória na edição
+            formContainer.style.display = 'block';
+            window.scrollTo(0, 0); // Rola para o topo para ver o formulário
+        }
+
+        userForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('userId').value;
+            const nome = document.getElementById('nome').value;
+            const email = document.getElementById('email').value;
+            const senha = document.getElementById('senha').value;
+            const tipo = document.getElementById('tipo').value;
+
+            const url = id ? `${API_URL}/usuarios/${id}` : `${API_URL}/usuarios`;
+            const method = id ? 'PUT' : 'POST';
+
+            const body = { nome, email, tipo };
+            if (senha) {
+                body.senha = senha;
+            }
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error);
+                alert(data.message);
+                formContainer.style.display = 'none';
+                await carregarUsuarios();
+            } catch (error) {
+                alert(`Erro: ${error.message}`);
+            }
+        });
+
+        async function deletarUsuario(id) {
+            if (!confirm(`Tem certeza que deseja deletar o usuário com ID ${id}?`)) return;
+            try {
+                const response = await fetch(`${API_URL}/usuarios/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error);
+                alert(data.message);
+                await carregarUsuarios();
+            } catch (error) {
+                alert(`Erro: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
